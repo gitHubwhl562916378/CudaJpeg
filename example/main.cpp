@@ -1,10 +1,10 @@
 /*
  * @Author: your name
- * @Date: 2020-10-21 09:08:34
- * @LastEditTime: 2020-10-21 09:09:40
- * @LastEditors: your name
+ * @Date: 2020-10-20 08:41:10
+ * @LastEditTime: 2020-10-21 11:04:07
+ * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
- * @FilePath: /tensorrt/CudaJpeg/example/main.cpp
+ * @FilePath: /tensorrt/CudaJpeg/main.cpp
  */
 #include <thread>
 #include <fstream>
@@ -30,21 +30,27 @@ void TestOneImage()
     jpg_decoder.DeviceInit(32, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
 
     cv::Mat image;
-    jpg_decoder.Decode(GetContents("whl_feature.jpg"), image, false);
+    std::vector<uchar> content = GetContents("whl_feature.jpg");
+    jpg_decoder.Decode(content.data(), content.size(), image, false);
     cv::imshow("win", image);
     cv::waitKey(0);
 }
 
 void TestBatchedImages()
 {
-    std::vector<std::vector<uchar>> images;
-    images.push_back(GetContents("whl_feature.jpg"));
-    images.push_back(GetContents("hezhongjie.jpg"));
+    std::vector<uchar*> images;
+    std::vector<size_t> lengths;
+    std::vector<uchar> img1 = GetContents("whl_feature.jpg");
+    std::vector<uchar> img2 = GetContents("hezhongjie.jpg");
+    images.push_back(img1.data());
+    images.push_back(img2.data());
+    lengths.push_back(img1.size());
+    lengths.push_back(img2.size());
 
-    std::vector<cv::Mat> outs; //or std::vector<cv::cuda::GpuMat>
+    std::vector<cv::Mat> outs;
     CudaJpegDecode jpg_decoder;
     jpg_decoder.DeviceInit(2, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
-    jpg_decoder.Decode(images, outs);
+    jpg_decoder.Decode(images, lengths, outs);
 
     std::cout << "Press Enter scan next" << std::endl;
     cv::imshow("win", outs.at(0));

@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:00
- * @LastEditTime: 2020-10-21 06:28:08
+ * @LastEditTime: 2020-10-21 10:56:37
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.h
@@ -27,20 +27,22 @@ public:
     
     /**
      * @description: 解压缩一张图片
-     * @param {image} 输入图片的内容
+     * @param {image} 输入图片的内容地址
+     * @param {length} 输入图片的内容长度
      * @param {pipelined} true使用解耦的接口形式
      * @return {dst} 解压缩的图片，　cv::Mat或者cv::cuda::Mat
      * @return {bool} 成功true, 失败false
-     */    
-    bool Decode(const std::vector<uchar> &image, cv::OutputArray dst, bool pipelined = false);
+     */  
+    bool Decode(uchar *image, const int length, cv::OutputArray dst, bool pipelined = false);
 
     /**
      * @description: 解压缩批量图片
-     * @param {images} 所有图片的数据，个数需要小于等于DeviceInit中的batch_size 
+     * @param {images} 所有图片的数据的每个图片地址，个数需要小于等于DeviceInit中的batch_size 
+     * @param {lengths} 所有图片的数据的每个图片长度，与images顺序和长度一致
      * @return {dst} 解出的图上，可以是std::vector<cv::Mat>或者std::vector<cv::cuda::GpuMat>
      * @return {bool} 解压缩成功true, 失败false
-     */    
-    bool Decode(const std::vector<std::vector<uchar>> &images, cv::OutputArray &dst);
+     */  
+    bool Decode(const std::vector<uchar*> &images, const std::vector<size_t> lengths, cv::OutputArray &dst);
 
 private:
     static int host_malloc(void **p, size_t s, unsigned int f);
