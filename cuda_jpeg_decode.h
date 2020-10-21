@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:00
- * @LastEditTime: 2020-10-21 06:28:08
+ * @LastEditTime: 2020-10-21 09:01:36
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.h

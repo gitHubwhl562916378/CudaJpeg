@@ -1,7 +1,15 @@
+/*
+ * @Author: your name
+ * @Date: 2020-10-20 08:41:10
+ * @LastEditTime: 2020-10-21 09:06:56
+ * @LastEditors: Please set LastEditors
+ * @Description: In User Settings Edit
+ * @FilePath: /tensorrt/CudaJpeg/main.cpp
+ */
 #include <thread>
 #include <fstream>
 #include <opencv2/opencv.hpp>
-#include "cuda_jpeg_decode.h"
+#include "../cuda_jpeg_decode.h"
 
 std::vector<uchar> GetContents(const std::string &file_name)
 {
@@ -33,7 +41,7 @@ void TestBatchedImages()
     images.push_back(GetContents("whl_feature.jpg"));
     images.push_back(GetContents("hezhongjie.jpg"));
 
-    std::vector<cv::Mat> outs; //or std::vector<cv::cuda::GpuMat>
+    std::vector<cv::Mat> outs;
     CudaJpegDecode jpg_decoder;
     jpg_decoder.DeviceInit(2, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
     jpg_decoder.Decode(images, outs);
