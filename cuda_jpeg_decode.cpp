@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-21 02:22:00
+ * @LastEditTime: 2020-10-21 06:26:16
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -24,6 +24,19 @@ void check(T result, char const *const func, const char *const file,
 
 CudaJpegDecode::CudaJpegDecode()
 {
+}
+
+CudaJpegDecode::~CudaJpegDecode()
+{
+    checkCudaErrors(nvjpegDecodeParamsDestroy(nvjpeg_decode_params_));
+    checkCudaErrors(nvjpegJpegStreamDestroy(jpeg_streams_));
+    checkCudaErrors(nvjpegBufferPinnedDestroy(pinned_buffers_));
+    checkCudaErrors(nvjpegBufferDeviceDestroy(device_buffer_));
+    checkCudaErrors(nvjpegJpegStateDestroy(nvjpeg_decoupled_state_));
+    checkCudaErrors(nvjpegDecoderDestroy(nvjpeg_decoder_));
+
+    checkCudaErrors(nvjpegJpegStateDestroy(nvjepg_state_));
+    checkCudaErrors(nvjpegDestroy(nvjpeg_handle_));
 }
 
 bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads, const nvjpegOutputFormat_t out_fmt, const int device)
@@ -52,6 +65,7 @@ bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads,
     checkCudaErrors(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, &dev_allocator_, &pinned_allocator_, flags, &nvjpeg_handle_));
     checkCudaErrors(nvjpegJpegStateCreate(nvjpeg_handle_, &nvjepg_state_));
     out_fmt_ = out_fmt;
+    batch_size_ = batch_size;
     checkCudaErrors(nvjpegDecodeBatchedInitialize(nvjpeg_handle_, nvjepg_state_, batch_size, max_cpu_threads, out_fmt));
 
     //for pipelined
@@ -64,10 +78,6 @@ bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads,
     checkCudaErrors(nvjpegJpegStreamCreate(nvjpeg_handle_, &jpeg_streams_));
 
     checkCudaErrors(nvjpegDecodeParamsCreate(nvjpeg_handle_, &nvjpeg_decode_params_));
-}
-
-void CudaJpegDecode::SetWarmup(const int warmup)
-{
 }
 
 bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst, bool pipelined)
@@ -107,11 +117,11 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
 
     // prepare output buffer
     cv::cuda::GpuMat c1(heights[0], widths[0], CV_8UC1), c2(heights[0], widths[0], CV_8UC1), c3(heights[0], widths[0], CV_8UC1);
-    iout.channel[0] = (unsigned char*)c1.cudaPtr();
+    iout.channel[0] = (unsigned char *)c1.cudaPtr();
     iout.pitch[0] = c1.step;
-    iout.channel[1] = (unsigned char*)c2.cudaPtr();
+    iout.channel[1] = (unsigned char *)c2.cudaPtr();
     iout.pitch[1] = c2.step;
-    iout.channel[2] = (unsigned char*)c3.cudaPtr();
+    iout.channel[2] = (unsigned char *)c3.cudaPtr();
     iout.pitch[2] = c3.step;
 
     checkCudaErrors(cudaStreamSynchronize(stream));
@@ -119,12 +129,14 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     checkCudaErrors(cudaEventCreateWithFlags(&startEvent, cudaEventBlockingSync));
     checkCudaErrors(cudaEventCreateWithFlags(&stopEvent, cudaEventBlockingSync));
 
-    if(!pipelined)
+    if (!pipelined)
     {
         checkCudaErrors(cudaEventRecord(startEvent, stream));
         checkCudaErrors(nvjpegDecode(nvjpeg_handle_, nvjepg_state_, image.data(), image.size(), out_fmt_, &iout, stream));
         checkCudaErrors(cudaEventRecord(stopEvent, stream));
-    }else{
+    }
+    else
+    {
         checkCudaErrors(cudaEventRecord(startEvent, stream));
         checkCudaErrors(nvjpegStateAttachDeviceBuffer(nvjpeg_decoupled_state_, device_buffer_));
         int buffer_index = 0;
@@ -143,24 +155,131 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     channel_mats.push_back(c1);
     channel_mats.push_back(c2);
     channel_mats.push_back(c3);
-    
+
     cv::cuda::GpuMat result(heights[0], widths[0], CV_8UC3);
     cv::cuda::merge(channel_mats, result);
-    if(dst.isGpuMat())
+    if (dst.isGpuMat())
     {
         dst.getGpuMatRef() = result;
-    }else if(dst.isMat())
+    }
+    else if (dst.isMat())
     {
         result.download(dst.getMatRef());
-    }else{
+    }
+    else
+    {
         throw std::invalid_argument("unsupport format of cv::OutputArray");
     }
+    checkCudaErrors(cudaStreamDestroy(stream));
 
     return true;
 }
 
-bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, std::vector<cv::OutputArray> &out)
+bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::OutputArray &dst)
 {
+    cudaStream_t stream;
+    checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+
+    std::vector<nvjpegImage_t> batch_out;
+    std::vector<std::vector<uchar>> batch_images = images;
+    std::vector<size_t> batch_img_size;
+    std::vector<std::vector<cv::cuda::GpuMat>> batch_channel_mats;
+    auto img_iter = batch_images.begin();
+    for (int i = 0; i < batch_size_; i++)
+    {
+        if (img_iter == images.end())
+        {
+            std::cerr << "Image list is too short to fill the batch, adding files "
+                         "from the beginning of the image list"
+                      << std::endl;
+            img_iter = batch_images.begin();
+            batch_images.push_back(*img_iter);
+        }
+
+        nvjpegImage_t out_temp;
+        for (int c = 0; c < NVJPEG_MAX_COMPONENT; c++)
+        {
+            out_temp.channel[c] = nullptr;
+            out_temp.pitch[c] = 0;
+        }
+
+        int widths[NVJPEG_MAX_COMPONENT];
+        int heights[NVJPEG_MAX_COMPONENT];
+        int channels;
+        nvjpegChromaSubsampling_t subsampling;
+
+        checkCudaErrors(nvjpegGetImageInfo(nvjpeg_handle_, img_iter->data(), img_iter->size(), &channels, &subsampling, widths, heights));
+        int mul = 1;
+        if (out_fmt_ == NVJPEG_OUTPUT_RGBI || out_fmt_ == NVJPEG_OUTPUT_BGRI)
+        {
+            channels = 1;
+            mul = 3;
+        }
+        else if (out_fmt_ == NVJPEG_OUTPUT_RGB || out_fmt_ == NVJPEG_OUTPUT_BGR)
+        {
+            channels = 3;
+            widths[1] = widths[2] = widths[0];
+            heights[1] = heights[2] = heights[0];
+        }
+
+        cv::cuda::GpuMat c1(heights[0], widths[0], CV_8UC1), c2(heights[0], widths[0], CV_8UC1), c3(heights[0], widths[0], CV_8UC1);
+        out_temp.channel[0] = (unsigned char *)c1.cudaPtr();
+        out_temp.pitch[0] = c1.step;
+        out_temp.channel[1] = (unsigned char *)c2.cudaPtr();
+        out_temp.pitch[1] = c2.step;
+        out_temp.channel[2] = (unsigned char *)c3.cudaPtr();
+        out_temp.pitch[2] = c3.step;
+
+        batch_channel_mats.emplace_back(std::vector<cv::cuda::GpuMat>{c1, c2, c3});
+        batch_out.push_back(out_temp);
+
+        batch_img_size.push_back(img_iter->size());
+        img_iter++;
+    }
+
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    cudaEvent_t startEvent = nullptr, stopEvent = nullptr;
+    checkCudaErrors(cudaEventCreateWithFlags(&startEvent, cudaEventBlockingSync));
+    checkCudaErrors(cudaEventCreateWithFlags(&stopEvent, cudaEventBlockingSync));
+
+    std::vector<const uchar *> raw_inputs;
+    std::transform(batch_images.begin(), batch_images.end(), std::back_inserter(raw_inputs), [](const std::vector<uchar> &img) { return img.data(); });
+    checkCudaErrors(cudaEventRecord(startEvent, stream));
+    checkCudaErrors(nvjpegDecodeBatched(nvjpeg_handle_, nvjepg_state_, raw_inputs.data(), batch_img_size.data(), batch_out.data(), stream));
+    checkCudaErrors(cudaEventSynchronize(stopEvent));
+
+    std::vector<cv::cuda::GpuMat> out_results;
+    for (auto &channels : batch_channel_mats)
+    {
+        int width = channels.at(0).cols;
+        int height = channels.at(0).rows;
+        cv::cuda::GpuMat result(height, width, CV_8UC3);
+        cv::cuda::merge(channels, result);
+        out_results.push_back(result);
+    }
+
+    if (dst.isGpuMatVector())
+    {
+        dst.getGpuMatVecRef() = out_results;
+    }
+    else if (dst.isMatVector())
+    {
+        dst.create(out_results.size(), 1, out_results.at(0).type());
+        std::vector<cv::Mat> dst_vec;
+        for (int j = 0; j < out_results.size(); j++)
+        {
+            cv::Mat temp;
+            out_results.at(j).download(temp);
+            dst.getMatRef(j) = temp;
+        }
+    }
+    else
+    {
+        throw std::invalid_argument("Only support std::vector<cv::Mat> or std::vector<cv::cuda::GpuMat>");
+    }
+    checkCudaErrors(cudaStreamDestroy(stream));
+
+    return true;
 }
 
 int CudaJpegDecode::host_malloc(void **p, size_t s, unsigned int f)
