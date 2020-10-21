@@ -1,8 +1,8 @@
 <!--
  * @Author: your name
  * @Date: 2020-10-21 06:17:14
- * @LastEditTime: 2020-10-21 06:22:10
- * @LastEditors: your name
+ * @LastEditTime: 2020-10-21 07:42:26
+ * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/README.md
 -->
@@ -13,7 +13,7 @@
 
 # Requires
 >+ cuda 10.0以上
->+ opencv 带编译cuda版本
+>+ opencv master分支带编译cuda版本, opencv_no_cuda分支常规版本
 
 # Build
 1. mkdir build

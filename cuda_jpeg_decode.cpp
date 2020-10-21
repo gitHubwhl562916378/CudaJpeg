@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-21 06:26:16
+ * @LastEditTime: 2020-10-21 07:42:46
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -299,7 +299,7 @@ int CudaJpegDecode::dev_malloc(void **p, size_t s)
 
 int CudaJpegDecode::dev_free(void *p)
 {
-    return (int)dev_free(p);
+    return (int)cudaFree(p);
 }
 
 int CudaJpegDecode::ConvertSMVer2Cores(int major, int minor)
