@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
 project(CudaJpeg
-        LANGUAGES CXX CUDA
+        LANGUAGES CXX
         VERSION "1.0"
         DESCRIPTION "transofrm color by cuda"
         HOMEPAGE_URL "https://github.com/NVIDIA/TensorRT")
