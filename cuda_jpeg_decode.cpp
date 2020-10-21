@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-21 07:42:46
+ * @LastEditTime: 2020-10-21 10:50:43
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -80,7 +80,7 @@ bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads,
     checkCudaErrors(nvjpegDecodeParamsCreate(nvjpeg_handle_, &nvjpeg_decode_params_));
 }
 
-bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst, bool pipelined)
+bool CudaJpegDecode::Decode(uchar *image, const int length, cv::OutputArray dst, bool pipelined)
 {
     cudaStream_t stream;
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
@@ -97,7 +97,7 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     int channels;
     nvjpegChromaSubsampling_t subsampling;
 
-    checkCudaErrors(nvjpegGetImageInfo(nvjpeg_handle_, image.data(), image.size(), &channels, &subsampling, widths, heights));
+    checkCudaErrors(nvjpegGetImageInfo(nvjpeg_handle_, image, length, &channels, &subsampling, widths, heights));
     int mul = 1;
     // in the case of interleaved RGB output, write only to single channel, but
     // 3 samples at once
@@ -132,7 +132,7 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     if (!pipelined)
     {
         checkCudaErrors(cudaEventRecord(startEvent, stream));
-        checkCudaErrors(nvjpegDecode(nvjpeg_handle_, nvjepg_state_, image.data(), image.size(), out_fmt_, &iout, stream));
+        checkCudaErrors(nvjpegDecode(nvjpeg_handle_, nvjepg_state_, image, length, out_fmt_, &iout, stream));
         checkCudaErrors(cudaEventRecord(stopEvent, stream));
     }
     else
@@ -141,7 +141,7 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
         checkCudaErrors(nvjpegStateAttachDeviceBuffer(nvjpeg_decoupled_state_, device_buffer_));
         int buffer_index = 0;
         checkCudaErrors(nvjpegDecodeParamsSetOutputFormat(nvjpeg_decode_params_, out_fmt_));
-        checkCudaErrors(nvjpegJpegStreamParse(nvjpeg_handle_, image.data(), image.size(), 0, 0, jpeg_streams_));
+        checkCudaErrors(nvjpegJpegStreamParse(nvjpeg_handle_, image, length, 0, 0, jpeg_streams_));
         checkCudaErrors(nvjpegStateAttachPinnedBuffer(nvjpeg_decoupled_state_, pinned_buffers_));
         checkCudaErrors(nvjpegDecodeJpegHost(nvjpeg_handle_, nvjpeg_decoder_, nvjpeg_decoupled_state_, nvjpeg_decode_params_, jpeg_streams_));
         checkCudaErrors(cudaStreamSynchronize(stream));
@@ -175,16 +175,17 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     return true;
 }
 
-bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::OutputArray &dst)
+bool CudaJpegDecode::Decode(const std::vector<uchar*> &images, const std::vector<size_t> lengths, cv::OutputArray &dst)
 {
     cudaStream_t stream;
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 
     std::vector<nvjpegImage_t> batch_out;
-    std::vector<std::vector<uchar>> batch_images = images;
-    std::vector<size_t> batch_img_size;
+    std::vector<uchar*> batch_images = images;
+    std::vector<size_t> batch_img_size = lengths;
     std::vector<std::vector<cv::cuda::GpuMat>> batch_channel_mats;
     auto img_iter = batch_images.begin();
+    auto img_len_iter = batch_img_size.begin();
     for (int i = 0; i < batch_size_; i++)
     {
         if (img_iter == images.end())
@@ -193,7 +194,9 @@ bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::O
                          "from the beginning of the image list"
                       << std::endl;
             img_iter = batch_images.begin();
+            img_len_iter = batch_img_size.begin();
             batch_images.push_back(*img_iter);
+            batch_img_size.push_back(*img_len_iter);
         }
 
         nvjpegImage_t out_temp;
@@ -208,7 +211,7 @@ bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::O
         int channels;
         nvjpegChromaSubsampling_t subsampling;
 
-        checkCudaErrors(nvjpegGetImageInfo(nvjpeg_handle_, img_iter->data(), img_iter->size(), &channels, &subsampling, widths, heights));
+        checkCudaErrors(nvjpegGetImageInfo(nvjpeg_handle_, *img_iter, *img_len_iter, &channels, &subsampling, widths, heights));
         int mul = 1;
         if (out_fmt_ == NVJPEG_OUTPUT_RGBI || out_fmt_ == NVJPEG_OUTPUT_BGRI)
         {
@@ -233,8 +236,8 @@ bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::O
         batch_channel_mats.emplace_back(std::vector<cv::cuda::GpuMat>{c1, c2, c3});
         batch_out.push_back(out_temp);
 
-        batch_img_size.push_back(img_iter->size());
         img_iter++;
+        img_len_iter++;
     }
 
     checkCudaErrors(cudaStreamSynchronize(stream));
@@ -242,10 +245,8 @@ bool CudaJpegDecode::Decode(const std::vector<std::vector<uchar>> &images, cv::O
     checkCudaErrors(cudaEventCreateWithFlags(&startEvent, cudaEventBlockingSync));
     checkCudaErrors(cudaEventCreateWithFlags(&stopEvent, cudaEventBlockingSync));
 
-    std::vector<const uchar *> raw_inputs;
-    std::transform(batch_images.begin(), batch_images.end(), std::back_inserter(raw_inputs), [](const std::vector<uchar> &img) { return img.data(); });
     checkCudaErrors(cudaEventRecord(startEvent, stream));
-    checkCudaErrors(nvjpegDecodeBatched(nvjpeg_handle_, nvjepg_state_, raw_inputs.data(), batch_img_size.data(), batch_out.data(), stream));
+    checkCudaErrors(nvjpegDecodeBatched(nvjpeg_handle_, nvjepg_state_, batch_images.data(), batch_img_size.data(), batch_out.data(), stream));
     checkCudaErrors(cudaEventSynchronize(stopEvent));
 
     std::vector<cv::cuda::GpuMat> out_results;
