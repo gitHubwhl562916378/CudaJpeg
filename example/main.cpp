@@ -1,7 +1,15 @@
+/*
+ * @Author: your name
+ * @Date: 2020-10-21 09:08:34
+ * @LastEditTime: 2020-10-21 09:09:40
+ * @LastEditors: your name
+ * @Description: In User Settings Edit
+ * @FilePath: /tensorrt/CudaJpeg/example/main.cpp
+ */
 #include <thread>
 #include <fstream>
 #include <opencv2/opencv.hpp>
-#include "cuda_jpeg_decode.h"
+#include "../cuda_jpeg_decode.h"
 
 std::vector<uchar> GetContents(const std::string &file_name)
 {
