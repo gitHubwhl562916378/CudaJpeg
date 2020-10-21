@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     ifile.close();
 
     cv::Mat image;
-    jpg_decoder.Decode(buffer, image);
+    jpg_decoder.Decode(buffer, image, true);
     cv::imshow("win", image);
     cv::waitKey(0);
 

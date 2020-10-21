@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-21 01:31:41
+ * @LastEditTime: 2020-10-21 02:22:00
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -75,12 +75,11 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     cudaStream_t stream;
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 
-    nvjpegImage_t iout, isz;
+    nvjpegImage_t iout;
     for (int i = 0; i < NVJPEG_MAX_COMPONENT; i++)
     {
         iout.channel[i] = nullptr;
         iout.pitch[i] = 0;
-        isz.pitch[i] = 0;
     }
 
     int widths[NVJPEG_MAX_COMPONENT];
@@ -107,22 +106,13 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     }
 
     // prepare output buffer
-    for (int c = 0; c < channels; c++)
-    {
-        int aw = mul * widths[c];
-        int ah = heights[c];
-        int sz = aw * ah;
-        iout.pitch[c] = aw;
-        if (sz > isz.pitch[c])
-        {
-            if (iout.channel[c])
-            {
-                checkCudaErrors(cudaFree(iout.channel[c]));
-            }
-            checkCudaErrors(cudaMalloc((void**)&iout.channel[c], sz));
-            isz.pitch[c] = sz;
-        }
-    }
+    cv::cuda::GpuMat c1(heights[0], widths[0], CV_8UC1), c2(heights[0], widths[0], CV_8UC1), c3(heights[0], widths[0], CV_8UC1);
+    iout.channel[0] = (unsigned char*)c1.cudaPtr();
+    iout.pitch[0] = c1.step;
+    iout.channel[1] = (unsigned char*)c2.cudaPtr();
+    iout.pitch[1] = c2.step;
+    iout.channel[2] = (unsigned char*)c3.cudaPtr();
+    iout.pitch[2] = c3.step;
 
     checkCudaErrors(cudaStreamSynchronize(stream));
     cudaEvent_t startEvent = nullptr, stopEvent = nullptr;
@@ -149,34 +139,10 @@ bool CudaJpegDecode::Decode(const std::vector<uchar> &image, cv::OutputArray dst
     }
     checkCudaErrors(cudaEventSynchronize(stopEvent));
 
-
-    cv::cuda::GpuMat r, g, b;
     std::vector<cv::cuda::GpuMat> channel_mats;
-    if(out_fmt_ == NVJPEG_OUTPUT_RGB)
-    {
-        r = cv::cuda::GpuMat(heights[0], widths[0], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(r.cudaPtr(), r.step, iout.channel[0], iout.pitch[0], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-        g = cv::cuda::GpuMat(heights[1], widths[1], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(g.cudaPtr(), g.step, iout.channel[1], iout.pitch[1], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-        b = cv::cuda::GpuMat(heights[2], widths[2], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(b.cudaPtr(), b.step, iout.channel[2], iout.pitch[2], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-
-        channel_mats.push_back(r);
-        channel_mats.push_back(g);
-        channel_mats.push_back(b);
-    }else if(out_fmt_ == NVJPEG_OUTPUT_BGR)
-    {
-        b = cv::cuda::GpuMat(heights[0], widths[0], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(b.cudaPtr(), b.step, iout.channel[0], iout.pitch[0], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-        g = cv::cuda::GpuMat(heights[1], widths[1], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(g.cudaPtr(), g.step, iout.channel[1], iout.pitch[1], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-        r = cv::cuda::GpuMat(heights[2], widths[2], CV_8UC1);
-        checkCudaErrors(cudaMemcpy2D(r.cudaPtr(), r.step, iout.channel[2], iout.pitch[2], widths[0], heights[0], cudaMemcpyDeviceToDevice));
-
-        channel_mats.push_back(b);
-        channel_mats.push_back(g);
-        channel_mats.push_back(r);
-    }
+    channel_mats.push_back(c1);
+    channel_mats.push_back(c2);
+    channel_mats.push_back(c3);
     
     cv::cuda::GpuMat result(heights[0], widths[0], CV_8UC3);
     cv::cuda::merge(channel_mats, result);
