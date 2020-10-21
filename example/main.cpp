@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 08:41:10
- * @LastEditTime: 2020-10-21 10:51:38
+ * @LastEditTime: 2020-10-21 11:06:41
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/main.cpp
@@ -29,7 +29,7 @@ void TestOneImage()
 
     jpg_decoder.DeviceInit(32, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
 
-    cv::Mat image;
+    cv::Mat image; //or cv::cuda::GpuMat
     std::vector<uchar> content = GetContents("whl_feature.jpg");
     jpg_decoder.Decode(content.data(), content.size(), image, false);
     cv::imshow("win", image);
@@ -47,7 +47,7 @@ void TestBatchedImages()
     lengths.push_back(img1.size());
     lengths.push_back(img2.size());
 
-    std::vector<cv::Mat> outs;
+    std::vector<cv::Mat> outs; //or std::vector<cv::cuda::GpuMat>
     CudaJpegDecode jpg_decoder;
     jpg_decoder.DeviceInit(2, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
     jpg_decoder.Decode(images, lengths, outs);
