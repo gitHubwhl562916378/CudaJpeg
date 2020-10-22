@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:00
- * @LastEditTime: 2020-10-21 10:53:45
+ * @LastEditTime: 2020-10-22 09:46:53
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.h
@@ -32,7 +32,7 @@ public:
      * @param {pipelined} true使用解耦的接口形式
      * @return {dst} 解压缩的图片，　cv::Mat或者cv::cuda::Mat
      * @return {bool} 成功true, 失败false
-     */    
+     */  
     bool Decode(uchar *image, const int length, cv::OutputArray dst, bool pipelined = false);
 
     /**
@@ -41,7 +41,7 @@ public:
      * @param {lengths} 所有图片的数据的每个图片长度，与images顺序和长度一致
      * @return {dst} 解出的图上，可以是std::vector<cv::Mat>或者std::vector<cv::cuda::GpuMat>
      * @return {bool} 解压缩成功true, 失败false
-     */    
+     */  
     bool Decode(const std::vector<uchar*> &images, const std::vector<size_t> lengths, cv::OutputArray &dst);
 
 private:
@@ -51,7 +51,6 @@ private:
     static int dev_free(void *p);
     int ConvertSMVer2Cores(int major, int minor);
     int GpuGetMaxGflopsDeviceId();
-    bool DecodePipelined(const std::vector<char> &image, cv::OutputArray dst);
 
     nvjpegDevAllocator_t dev_allocator_;
     nvjpegPinnedAllocator_t pinned_allocator_;
