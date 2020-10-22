@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-22 09:18:18
+ * @LastEditTime: 2020-10-22 09:45:15
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -456,8 +456,4 @@ int CudaJpegDecode::GpuGetMaxGflopsDeviceId()
     }
 
     return max_perf_device;
-}
-
-bool CudaJpegDecode::DecodePipelined(const std::vector<char> &image, cv::OutputArray dst)
-{
 }
