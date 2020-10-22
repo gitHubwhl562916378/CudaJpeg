@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:00
- * @LastEditTime: 2020-10-21 10:56:37
+ * @LastEditTime: 2020-10-22 09:48:27
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.h
@@ -51,7 +51,6 @@ private:
     static int dev_free(void *p);
     int ConvertSMVer2Cores(int major, int minor);
     int GpuGetMaxGflopsDeviceId();
-    bool DecodePipelined(const std::vector<char> &image, cv::OutputArray dst);
 
     nvjpegDevAllocator_t dev_allocator_;
     nvjpegPinnedAllocator_t pinned_allocator_;
