@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-21 10:50:43
+ * @LastEditTime: 2020-10-22 08:59:47
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -181,11 +181,11 @@ bool CudaJpegDecode::Decode(const std::vector<uchar*> &images, const std::vector
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 
     std::vector<nvjpegImage_t> batch_out;
-    std::vector<uchar*> batch_images = images;
-    std::vector<size_t> batch_img_size = lengths;
+    std::vector<uchar*> batch_images;
+    std::vector<size_t> batch_img_size;
     std::vector<std::vector<cv::cuda::GpuMat>> batch_channel_mats;
-    auto img_iter = batch_images.begin();
-    auto img_len_iter = batch_img_size.begin();
+    auto img_iter = images.begin();
+    auto img_len_iter = lengths.begin();
     for (int i = 0; i < batch_size_; i++)
     {
         if (img_iter == images.end())
@@ -193,10 +193,8 @@ bool CudaJpegDecode::Decode(const std::vector<uchar*> &images, const std::vector
             std::cerr << "Image list is too short to fill the batch, adding files "
                          "from the beginning of the image list"
                       << std::endl;
-            img_iter = batch_images.begin();
-            img_len_iter = batch_img_size.begin();
-            batch_images.push_back(*img_iter);
-            batch_img_size.push_back(*img_len_iter);
+            img_iter = images.begin();
+            img_len_iter = lengths.begin();
         }
 
         nvjpegImage_t out_temp;
@@ -236,6 +234,8 @@ bool CudaJpegDecode::Decode(const std::vector<uchar*> &images, const std::vector
         batch_channel_mats.emplace_back(std::vector<cv::cuda::GpuMat>{c1, c2, c3});
         batch_out.push_back(out_temp);
 
+        batch_images.push_back(*img_iter);
+        batch_img_size.push_back(*img_len_iter);
         img_iter++;
         img_len_iter++;
     }
