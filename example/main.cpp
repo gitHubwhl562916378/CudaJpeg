@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 08:41:10
- * @LastEditTime: 2020-10-21 11:04:07
+ * @LastEditTime: 2020-10-22 09:21:17
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/main.cpp
@@ -49,14 +49,16 @@ void TestBatchedImages()
 
     std::vector<cv::Mat> outs;
     CudaJpegDecode jpg_decoder;
-    jpg_decoder.DeviceInit(2, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
+    int batch = 32;
+    jpg_decoder.DeviceInit(batch, std::thread::hardware_concurrency(), NVJPEG_OUTPUT_BGR);
     jpg_decoder.Decode(images, lengths, outs);
 
     std::cout << "Press Enter scan next" << std::endl;
-    cv::imshow("win", outs.at(0));
-    cv::waitKey(0);
-    cv::imshow("win", outs.at(1));
-    cv::waitKey(0);
+    for(int i = 0; i < batch; i++)
+    {
+        cv::imshow("win", outs.at(i));
+        cv::waitKey(0);
+    }
 }
 
 int main(int argc, char **argv)
