@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:00
- * @LastEditTime: 2020-10-22 09:48:27
+ * @LastEditTime: 2020-10-26 09:54:39
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.h
@@ -52,6 +52,7 @@ private:
     int ConvertSMVer2Cores(int major, int minor);
     int GpuGetMaxGflopsDeviceId();
 
+    int device_id_ = 0;
     nvjpegDevAllocator_t dev_allocator_;
     nvjpegPinnedAllocator_t pinned_allocator_;
     nvjpegHandle_t nvjpeg_handle_;
