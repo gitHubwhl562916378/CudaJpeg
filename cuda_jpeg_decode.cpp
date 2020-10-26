@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2020-10-20 03:40:09
- * @LastEditTime: 2020-10-22 09:46:45
+ * @LastEditTime: 2020-10-26 09:51:36
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: /tensorrt/CudaJpeg/cuda_jpeg_decode.cpp
@@ -28,6 +28,7 @@ CudaJpegDecode::CudaJpegDecode()
 
 CudaJpegDecode::~CudaJpegDecode()
 {
+    checkCudaErrors(cudaSetDevice(device_id_));
     checkCudaErrors(nvjpegDecodeParamsDestroy(nvjpeg_decode_params_));
     checkCudaErrors(nvjpegJpegStreamDestroy(jpeg_streams_));
     checkCudaErrors(nvjpegBufferPinnedDestroy(pinned_buffers_));
@@ -41,21 +42,20 @@ CudaJpegDecode::~CudaJpegDecode()
 
 bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads, const nvjpegOutputFormat_t out_fmt, const int device)
 {
-    int device_id = -1;
-
     if (device == -1)
     {
-        device_id = GpuGetMaxGflopsDeviceId();
+        device_id_ = GpuGetMaxGflopsDeviceId();
     }
     else
     {
-        device_id = device;
+        device_id_ = device;
     }
 
+    checkCudaErrors(cudaSetDevice(device_id_));
     cudaDeviceProp props;
-    checkCudaErrors(cudaGetDeviceProperties(&props, device_id));
+    checkCudaErrors(cudaGetDeviceProperties(&props, device_id_));
     printf("Using GPU %d (%s, %d SMs, %d th/SM max, CC %d.%d, ECC %s)\n",
-           device_id, props.name, props.multiProcessorCount,
+           device_id_, props.name, props.multiProcessorCount,
            props.maxThreadsPerMultiProcessor, props.major, props.minor,
            props.ECCEnabled ? "on" : "off");
 
@@ -82,6 +82,7 @@ bool CudaJpegDecode::DeviceInit(const int batch_size, const int max_cpu_threads,
 
 bool CudaJpegDecode::Decode(uchar *image, const int length, cv::OutputArray dst, bool pipelined)
 {
+    checkCudaErrors(cudaSetDevice(device_id_));
     cudaStream_t stream;
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 
@@ -177,6 +178,7 @@ bool CudaJpegDecode::Decode(uchar *image, const int length, cv::OutputArray dst,
 
 bool CudaJpegDecode::Decode(const std::vector<uchar*> &images, const std::vector<size_t> lengths, cv::OutputArray &dst)
 {
+    checkCudaErrors(cudaSetDevice(device_id_));
     cudaStream_t stream;
     checkCudaErrors(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 
